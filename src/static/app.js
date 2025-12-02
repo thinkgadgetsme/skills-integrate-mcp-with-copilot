@@ -3,6 +3,104 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+    const searchInput = document.getElementById("activity-search");
+    const sortSelect = document.getElementById("activity-sort");
+
+    let allActivities = {};
+    let lastActivities = {};
+
+    // Render activities with optional filter/sort
+    function renderActivities(activities) {
+      // Get search and sort values
+      const search = searchInput ? searchInput.value.trim().toLowerCase() : "";
+      const sortBy = sortSelect ? sortSelect.value : "name";
+
+      // Filter
+      let filtered = Object.entries(activities).filter(([name, details]) => {
+        return (
+          name.toLowerCase().includes(search) ||
+          (details.description && details.description.toLowerCase().includes(search))
+        );
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        if (sortBy === "name") {
+          return a[0].localeCompare(b[0]);
+        } else if (sortBy === "spots") {
+          const spotsA = a[1].max_participants - a[1].participants.length;
+          const spotsB = b[1].max_participants - b[1].participants.length;
+          return spotsB - spotsA;
+        }
+        return 0;
+      });
+
+      // Clear list
+      activitiesList.innerHTML = "";
+
+      // Render
+      filtered.forEach(([name, details]) => {
+        const activityCard = document.createElement("div");
+        activityCard.className = "activity-card";
+        const spotsLeft = details.max_participants - details.participants.length;
+        const participantsHTML =
+          details.participants.length > 0
+            ? `<div class="participants-section">
+                <h5>Participants:</h5>
+                <ul class="participants-list">
+                  ${details.participants
+                    .map(
+                      (email) =>
+                        `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                    )
+                    .join("")}
+                </ul>
+              </div>`
+            : `<p><em>No participants yet</em></p>`;
+        activityCard.innerHTML = `
+          <h4>${name}</h4>
+          <p>${details.description}</p>
+          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-container">
+            ${participantsHTML}
+          </div>
+        `;
+        activitiesList.appendChild(activityCard);
+      });
+
+      // Add event listeners to delete buttons
+      document.querySelectorAll(".delete-btn").forEach((button) => {
+        button.addEventListener("click", handleUnregister);
+      });
+    }
+
+    // Populate select dropdown
+    function renderActivitySelect(activities) {
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+      Object.keys(activities).forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        activitySelect.appendChild(option);
+      });
+    }
+
+    // Fetch activities and update UI
+    async function fetchActivities() {
+      try {
+        const response = await fetch("/activities");
+        const activities = await response.json();
+        allActivities = activities;
+        lastActivities = activities;
+        renderActivities(activities);
+        renderActivitySelect(activities);
+      } catch (error) {
+        activitiesList.innerHTML =
+          "<p>Failed to load activities. Please try again later.</p>";
+        console.error("Error fetching activities:", error);
+      }
+    }
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -154,6 +252,21 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error signing up:", error);
     }
   });
+
+    // Add listeners for search and sort
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        renderActivities(allActivities);
+      });
+    }
+    if (sortSelect) {
+      sortSelect.addEventListener("change", () => {
+        renderActivities(allActivities);
+      });
+    }
+
+    // Initialize app
+    fetchActivities();
 
   // Initialize app
   fetchActivities();
